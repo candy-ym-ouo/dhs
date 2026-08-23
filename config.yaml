@@ -1,0 +1,8 @@
+listen: :8080
+database: ./data/heartbeat.db
+scan_interval: 5s
+heartbeat_timeout: 30s
+recovery_grace: 60s
+max_lost_duration: 30m
+retention: 168h
+confirm_count: 1
