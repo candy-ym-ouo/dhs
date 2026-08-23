@@ -1,0 +1,1 @@
+-- Schema is applied by the SQLite bootstrap for portability.
