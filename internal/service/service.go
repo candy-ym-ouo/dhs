@@ -32,7 +32,7 @@ func (s *Service) Heartbeat(ctx context.Context, id string, r model.HeartbeatReq
 		return model.Heartbeat{}, false, err
 	}
 	now := time.Now().UTC()
-	h, e := s.Store.RecordHeartbeat(downstreamContext(ctx), id, r, now)
+	h, e := s.Store.RecordHeartbeat(ctx, id, r, now)
 	if e != nil {
 		return h, false, e
 	}
