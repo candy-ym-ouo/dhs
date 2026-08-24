@@ -5,6 +5,7 @@ import (
 	"dhs/internal/service"
 	"dhs/internal/store"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,6 +29,16 @@ func write(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(map[string]any{"code": 0, "data": v})
 }
 func fail(w http.ResponseWriter, c int, e error) { http.Error(w, e.Error(), c) }
+func statusFor(e error) int {
+	switch {
+	case errors.Is(e, service.ErrNotFound) || errors.Is(e, store.ErrNotFound):
+		return 404
+	case errors.Is(e, service.ErrConflict) || errors.Is(e, store.ErrConflict):
+		return 409
+	default:
+		return 500
+	}
+}
 func (a *API) register(w http.ResponseWriter, r *http.Request) {
 	var x model.RegisterRequest
 	if json.NewDecoder(r.Body).Decode(&x) != nil {
@@ -110,7 +121,7 @@ func (a *API) detail(w http.ResponseWriter, r *http.Request) {
 	if len(p) == 4 {
 		n, e := a.S.Node(r.Context(), id)
 		if e != nil {
-			fail(w, 404, e)
+			fail(w, statusFor(e), e)
 			return
 		}
 		write(w, n)
@@ -120,14 +131,14 @@ func (a *API) detail(w http.ResponseWriter, r *http.Request) {
 	if p[4] == "transitions" {
 		v, e := a.S.Transitions(r.Context(), id, l)
 		if e != nil {
-			fail(w, 500, e)
+			fail(w, statusFor(e), e)
 			return
 		}
 		write(w, v)
 	} else if p[4] == "heartbeats" {
 		v, e := a.S.Heartbeats(r.Context(), id, l)
 		if e != nil {
-			fail(w, 500, e)
+			fail(w, statusFor(e), e)
 			return
 		}
 		write(w, v)

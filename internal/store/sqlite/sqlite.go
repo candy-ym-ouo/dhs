@@ -6,6 +6,7 @@ import (
 	"dhs/internal/model"
 	"dhs/internal/store"
 	"encoding/json"
+	"errors"
 	"fmt"
 	_ "modernc.org/sqlite"
 	"os"
@@ -88,7 +89,14 @@ func (s *DB) Register(ctx context.Context, r model.RegisterRequest) (model.Node,
 	return s.GetNode(ctx, r.ID)
 }
 func (s *DB) GetNode(ctx context.Context, id string) (model.Node, error) {
-	return scanNode(s.db.QueryRowContext(ctx, "SELECT "+nodeCols+" FROM nodes WHERE id=?", id))
+	n, e := scanNode(s.db.QueryRowContext(ctx, "SELECT "+nodeCols+" FROM nodes WHERE id=?", id))
+	if e != nil {
+		if errors.Is(e, sql.ErrNoRows) {
+			return n, store.ErrNotFound
+		}
+		return n, e
+	}
+	return n, nil
 }
 func (s *DB) ListNodes(ctx context.Context, f store.Filter) ([]model.Node, int, error) {
 	where := []string{"1=1"}
@@ -161,7 +169,7 @@ func (s *DB) SetStatus(ctx context.Context, id string, to model.Status, reason, 
 	}
 	aff, _ := res.RowsAffected()
 	if aff == 0 {
-		return false, nil
+		return false, store.ErrConflict
 	}
 	_, e = s.db.ExecContext(ctx, "INSERT INTO state_transitions(node_id,from_status,to_status,reason,trigger,detail,created_at) VALUES(?,?,?,?,?,?,?)", id, n.Status, to, reason, trigger, detail, now.Format(time.RFC3339Nano))
 	return aff == 1, e
@@ -172,9 +180,10 @@ func (s *DB) StartRecovery(ctx context.Context, id string, now time.Time) (bool,
 		return false, e
 	}
 	a, _ := r.RowsAffected()
-	if a == 1 {
-		_, e = s.db.ExecContext(ctx, "INSERT INTO state_transitions(node_id,from_status,to_status,reason,trigger,detail,created_at) VALUES(?,?,?,?,?,?,?)", id, model.Lost, model.Recovering, "recovery_start", "scanner", "", now.Format(time.RFC3339Nano))
+	if a == 0 {
+		return false, store.ErrConflict
 	}
+	_, e = s.db.ExecContext(ctx, "INSERT INTO state_transitions(node_id,from_status,to_status,reason,trigger,detail,created_at) VALUES(?,?,?,?,?,?,?)", id, model.Lost, model.Recovering, "recovery_start", "scanner", "", now.Format(time.RFC3339Nano))
 	return a == 1, e
 }
 func (s *DB) ListTransitions(ctx context.Context, id string, limit int) ([]model.Transition, error) {

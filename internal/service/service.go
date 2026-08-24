@@ -5,12 +5,15 @@ import (
 	"dhs/internal/heartbeat"
 	"dhs/internal/model"
 	"dhs/internal/store"
-	"errors"
+	"fmt"
 	"time"
 )
 
-var ErrNotFound = errors.New("node not found")
-var ErrConflict = errors.New("invalid state transition")
+// ErrNotFound and ErrConflict alias the store sentinels so that errors.Is
+// matches a single canonical sentinel across the store, service, and HTTP
+// layers regardless of which layer wraps the error.
+var ErrNotFound = store.ErrNotFound
+var ErrConflict = store.ErrConflict
 
 type Service struct {
 	Store        store.Store
@@ -26,7 +29,7 @@ func (s *Service) Register(ctx context.Context, r model.RegisterRequest) (model.
 func (s *Service) Heartbeat(ctx context.Context, id string, r model.HeartbeatRequest) (model.Heartbeat, bool, error) {
 	n, e := s.Store.GetNode(ctx, id)
 	if e != nil {
-		return model.Heartbeat{}, false, ErrNotFound
+		return model.Heartbeat{}, false, fmt.Errorf("get node %s: %w", id, e)
 	}
 	if err := r.Validate(); err != nil {
 		return model.Heartbeat{}, false, err
@@ -58,7 +61,7 @@ func (s *Service) transition(ctx context.Context, id string, to model.Status, re
 func (s *Service) Recover(ctx context.Context, id string) (bool, error) {
 	n, e := s.Store.GetNode(ctx, id)
 	if e != nil {
-		return false, ErrNotFound
+		return false, fmt.Errorf("get node %s: %w", id, e)
 	}
 	if n.Status != model.Lost && n.Status != model.Recovering {
 		return false, ErrConflict
@@ -67,14 +70,14 @@ func (s *Service) Recover(ctx context.Context, id string) (bool, error) {
 }
 func (s *Service) Retire(ctx context.Context, id string) (bool, error) {
 	if _, e := s.Store.GetNode(ctx, id); e != nil {
-		return false, ErrNotFound
+		return false, fmt.Errorf("get node %s: %w", id, e)
 	}
 	return s.transition(ctx, id, model.Offline, "manual_retire", "manual", time.Now().UTC())
 }
 func (s *Service) Node(ctx context.Context, id string) (model.Node, error) {
 	n, e := s.Store.GetNode(ctx, id)
 	if e != nil {
-		return n, flattenError(e)
+		return n, fmt.Errorf("get node %s: %w", id, e)
 	}
 	return n, nil
 }
