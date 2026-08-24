@@ -39,6 +39,9 @@ func (r RegisterRequest) Validate() error {
 }
 
 func (r *RegisterRequest) AddSourceLabel() {
+	if r.Labels == nil {
+		r.Labels = map[string]string{}
+	}
 	r.Labels["source"] = "heartbeat-api"
 }
 
