@@ -1,5 +1,10 @@
 package model
 
+// Clone returns a deep copy of the node so callers cannot mutate cached
+// state by editing shared backing arrays. Labels is a map (always distinct
+// on copy), but TaskTypes is a slice: assigning the header directly shares
+// the underlying array, so a later append from any holder can write through
+// into every other copy. Copy the element storage explicitly.
 func (n Node) Clone() Node {
 	x := n
 	if n.Labels != nil {
@@ -9,7 +14,8 @@ func (n Node) Clone() Node {
 		}
 	}
 	if n.TaskTypes != nil {
-		x.TaskTypes = n.TaskTypes
+		x.TaskTypes = make([]string, len(n.TaskTypes))
+		copy(x.TaskTypes, n.TaskTypes)
 	}
 	return x
 }
