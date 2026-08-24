@@ -9,7 +9,7 @@ func (n Node) Clone() Node {
 		}
 	}
 	if n.TaskTypes != nil {
-		x.TaskTypes = n.TaskTypes
+		x.TaskTypes = append([]string(nil), n.TaskTypes...)
 	}
 	return x
 }
