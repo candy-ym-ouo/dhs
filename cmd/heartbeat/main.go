@@ -34,8 +34,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	sc := &scanner.Scanner{Store: db, Service: svc, Config: cfg, Log: slog.Default()}
-	go sc.Run(ctx)
-	go sc.Run(ctx)
+	if e := sc.Start(ctx); e != nil {
+		slog.Error("scanner start failed", "error", e)
+		cancel()
+	}
 	go func() {
 		slog.Info("heartbeat service listening", "addr", cfg.Listen)
 		if e := srv.ListenAndServe(); e != nil && e != http.ErrServerClosed {
@@ -45,4 +47,5 @@ func main() {
 	}()
 	<-ctx.Done()
 	_ = srv.Shutdown(context.Background())
+	sc.Stop()
 }
